@@ -1,0 +1,3 @@
+[submodule "SOFTWARE/Etek_SmartCharger/src"]
+	path = SOFTWARE/Etek_SmartCharger/src
+	url = https://github.com/bastoon577-lang/SmartCharger_utils
