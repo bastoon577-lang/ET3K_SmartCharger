@@ -27,6 +27,8 @@ Veuillez consulter le [Wiki du projet](https://github.com/bastoon577-lang/ET3K_S
 
 Ce projet fonctionne de paire avec le projet [Module TIC](https://github.com/bastoon577-lang/Module_TIC/wiki), et permet la lecture des données issues du compteur Linky au travers du réseau LAN en utilisant le réseau Wifi.
 
+<div id='clone'/> 
+
 ## Clone du projet
 
 Le clonage du projet passe par les étapes suivantes:
