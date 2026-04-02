@@ -9,6 +9,8 @@ Développement d'un système de recharge VE basé sur les plateformes :
 Table des matières
  1. [Mes motivations](#motivation)
  2. [Concept du SmartCharger](#concept)
+ 3. [Clone du projet](#clone)
+ 4. [Compile du projet](#build)
 *******
 
 <div id='motivation'/> 
@@ -24,5 +26,20 @@ J'ai souhaité développer un système de recharge intelligent pour véhicule é
 Veuillez consulter le [Wiki du projet](https://github.com/bastoon577-lang/ET3K_SmartCharger/wiki) pour plus d'informations concernant le concept.
 
 Ce projet fonctionne de paire avec le projet [Module TIC](https://github.com/bastoon577-lang/Module_TIC/wiki), et permet la lecture des données issues du compteur Linky au travers du réseau LAN en utilisant le réseau Wifi.
+
+## Clone du projet
+
+Le clonage du projet passe par les étapes suivantes:
+```
+git clone https://github.com/bastoon577-lang/ET3K_SmartCharger.git
+cd ET3K_SmartCharger/
+git submodule update --init --recursive
+```
+
+<div id='build'/> 
+
+## Compilation du projet
+
+Veuillez vous référer au [Wiki de compilation](https://github.com/bastoon577-lang/ET3K_SmartCharger/wiki/Compilation-du-ET3K_SmartCharger).
 
 ###### Auteur : *Sébastien DALIGAULT*. 
