@@ -6,7 +6,6 @@
 #include "src/smartcharger/eeprom_utils.h"
 #include "src/smartcharger/common_utils.h"
 #include "src/smartcharger/reboot_utils.h"
-#include "src/smartcharger/led_utils.h"
 
 #include "src/ihm/configuration_page.h"
 #include "src/ihm/exploitation_page.h"
@@ -308,7 +307,6 @@ void setup() {
     if(static_conf.is_tic_module_used) {                                // Un Module TIC est-il configuré ?
       ws_client_init(&tic_conf);                                        // Initialisation du service WebSocket Client
     }
-    led_init(TIMEOUT_LED_LENT);                                         // Clignotement lent de la LED
   }
   else                                                                  // L'equipement est vierge
   {
@@ -336,7 +334,6 @@ void setup() {
     web_server.on("/end",HTTP_POST,handle_action_configuration_button);
 
     wifi_equipments = WiFi.scanNetworks();                              // Scan des reseaux Wifi disponibles
-    led_init(TIMEOUT_LED_RAPI);                                         // Clignotement rapide de la LED
   }
   
   sm_charger_init(&static_conf,&volatile_conf);                         // Initialisation du service Charger
@@ -365,5 +362,4 @@ void loop() {
   web_server.handleClient();                                            // Handler du service Web
   ArduinoOTA.handle();                                                  // Handler du service OTA
   reboot_handler();                                                     // Handler du service Reboot
-  led_handler();                                                        // Handler du service LED
 }

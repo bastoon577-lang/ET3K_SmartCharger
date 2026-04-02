@@ -9,16 +9,8 @@ static HAL_t hal;
  */
 void hal_init(void) {
   pinMode(GPIO_DMD_RESET,INPUT_PULLUP);                       // Déclaration de l'entrée GPIO de Reboot
-  pinMode(GPIO_LED_IHM,OUTPUT);                               // Configuration de la LED
-
+  pinMode(GPIO_RE_DE,OUTPUT);                                 // Configuration du RE/DE BUS RS485
   ET3K_UART.begin(9600);                                      // Initialisation de la communication avec l'ETEK
-}
-
-/**
- * \fn void hal_toggle_led(void)
- */
-void hal_toggle_led(void) {
-  digitalWrite(GPIO_LED_IHM,!digitalRead(GPIO_LED_IHM));      // Toggle de la LED
 }
 
 /**
@@ -46,29 +38,46 @@ void hal_evse_init(void) {
  * \fn void hal_evse_update_input(void)
  */
 void hal_evse_update_input(void) {
-  // IDE arduino ne permet pas __attribute__((weak))
-  // Ne rien faire
+  // L'IDE Arduino ne gère pas proprement __attribute__((weak))
+  // Ne rien faire dans le contexte ET3K
 }
 
 /**
- * \fn CHARGE_STATE_EVSE_e hal_evse_get_state
+ * \fn CHARGE_STATE_EVSE_e hal_evse_get_state(void)
  */
 CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
+  CHARGE_STATE_ET3K_e et3k_state;
   CHARGE_STATE_EVSE_e ret;
-  uint16_t state = modbus_read_register(1,141);
+  
+  et3k_state = 
+        (CHARGE_STATE_ET3K_e)modbus_read_register(1,141);     // Lecture de l'état de l'ET3K
 
-  switch(state) {
-    case 0:
-      return evse_Not_Connected;
-    case 1:
-    case 2:
-      return evse_Connected;
-    case 3:
-      return evse_Charging;
+  switch(et3k_state) {                                        // Translation CHARGE_STATE_ET3K_e -> CHARGE_STATE_EVSE_e
+    case et3k_ready:
+      ret = evse_Not_Connected;
+      break;
+    case et3k_connected_1:
+    case et3k_connected_2:
+      ret = evse_Connected;
+      break;
+    case et3k_charging:
+      ret = evse_Charging;
+      break;
+    case et3k_rfid_waiting:
+    case et3k_fault_1:
+    case et3k_fault_2:
+    case et3k_fault_3:
+    case et3k_fault_4:
+    case et3k_fault_5:
+    case et3k_fault_6:
+    case et3k_fault_7:
+    case et3k_fault_8:
+    case et3k_fault_9:
     default:
-      return evse_Fault;
+      ret = evse_Fault;
+      break;
   }
-  return evse_Not_Connected;
+  return ret;
 }
 
 /**
@@ -95,10 +104,11 @@ void hal_set_current(uint8_t current) {
     delay(50);
   }
 
-  if(hal.current != current) {                                // Le courant à changé
-    modbus_write_register(1,102,current*100);                 // Envois du nouveau courant
-    hal.current = current;
-  }
+  if(hal.current == current)                                  // Le courant n'a pas changé
+    return;                                                   // Echappement
+    
+  modbus_write_register(1,102,current*100);                   // Envois du courant à l'ET3K
+  hal.current = current;                                      // MAJ du courant
 }
 
 /**
@@ -112,7 +122,10 @@ bool hal_get_reboot(void) {
  * \fn void hal_uart_write(uint8_t *frame, uint8_t size)
  */
 void hal_uart_write(uint8_t *frame, uint8_t size) {
-  ET3K_UART.write(frame,size);
+  digitalWrite(GPIO_RE_DE,HIGH);                              // Positionnement du RE/DE pour TX
+  ET3K_UART.write(frame,size);                                // Envois des données sur le BUS RS485
+  delay(10);
+  digitalWrite(GPIO_RE_DE,LOW);                               // Positionnement du RE/DE pour RX
 }
 
 /**

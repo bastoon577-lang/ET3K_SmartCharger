@@ -11,8 +11,8 @@
 
 //< Define des In/Out
 #define ET3K_UART                 Serial                // BUS de communication avec l'ET3K
-#define GPIO_DMD_RESET            0                     // GPIO du bouton Reset
-#define GPIO_LED_IHM              2                     // GPIO de la LED
+#define GPIO_RE_DE                0                     // GPIO du RE/DE BUS RS485
+#define GPIO_DMD_RESET            2                     // GPIO du bouton Reset
 
 //< Define de bornes de courants de charge VE
 #define MINIMAL_CHARGE_CURRENT    6                     // Courant de charge minimal
@@ -39,12 +39,6 @@ typedef struct
  * \brief Fonction permettant d'initialiser la HAL
  */
 void hal_init(void);
-
-/**
- * \fn void hal_toggle_led(void)
- * \brief Fonction permettant de toggle l'état de la LED
- */
-void hal_toggle_led(void);
 
 /**
  * \fn void hal_disable_interrupt(void)
