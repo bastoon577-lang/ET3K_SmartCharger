@@ -65,24 +65,18 @@ void hal_evse_init(void);
 void hal_evse_update_input(void);
 
 /**
+ * \fn void hal_evse_update_output(uint8_t current)
+ * \brief Fonction permettant le réglage de la consigne de courant
+ *        du service ET3K
+ * \param in, le courant de consigne I E [0,32]
+ */
+void hal_evse_update_output(uint8_t current);
+
+/**
  * \fn CHARGE_STATE_EVSE_e hal_evse_get_state(void)
  * \brief Fonction de lecture de l'état de charge de l'ET3K
  */
 CHARGE_STATE_EVSE_e hal_evse_get_state(void);
-
-/**
- * \fn void hal_lock_current(void)
- * \brief Fonction permettant le pilotage de la sortie PWM IC à l'état haut
- *        pour permettre le blocage du Viridian
- */
-void hal_lock_current(void);
-
-/**
- * \fn void hal_set_current(int current)
- * \brief Fonction permettant le pilotage de la sortie PWM IC du Viridian
- * \param in, la valeur de courant souhaitée
- */
-void hal_set_current(uint8_t current);
 
 /**
  * \fn bool hal_get_reboot(void)

@@ -11,6 +11,7 @@ void hal_init(void) {
   pinMode(GPIO_DMD_RESET,INPUT_PULLUP);                       // Déclaration de l'entrée GPIO de Reboot
   pinMode(GPIO_RE_DE,OUTPUT);                                 // Configuration du RE/DE BUS RS485
   ET3K_UART.begin(9600);                                      // Initialisation de la communication avec l'ETEK
+  ET3K_UART.setTimeout(250);                                  // Initialisation du TimeOut de non reception de donnée
 }
 
 /**
@@ -31,7 +32,7 @@ void hal_enable_interrupt(void) {
  * \fn void hal_evse_init(void)
  */
 void hal_evse_init(void) {
-  hal_lock_current();
+  hal_evse_update_output(0);
 }
 
 /**
@@ -43,6 +44,41 @@ void hal_evse_update_input(void) {
 }
 
 /**
+ * \fn void hal_evse_update_output(uint8_t current)
+ */
+void hal_evse_update_output(uint8_t current) {
+  if(current == 0) {                                          // Un blocage est demandé
+    if(hal.lock == true)                                      // L'ETEK à déjà été bloqué
+      return;                                                 // Echappement immédiat
+    hal.current = current;                                    // Réinitialisation du courant
+    hal.lock = true;                                          // Sauvegarde du blocage
+    modbus_write_register(ET3K_ID,ET3K_SET_START_STOP,
+                          et3k_stop);                         // Envois de la commande de blocage à l'ET3K
+  } else {                                                    // Autrement, attribution du courant de consigne
+    
+    // Contrôle du courant de consigne
+    if(current < MINIMAL_CHARGE_CURRENT || current > MAXIMAL_CHARGE_CURRENT)
+      return;                                                 // Echappement
+
+    // Déblocage de l'ET3K si nécessaire
+    if(hal.lock == true) {                                    // L'ETEK est bloqué
+      hal.lock = false;                                       // Sauvegarde du déblocage
+      modbus_write_register(ET3K_ID,ET3K_SET_START_STOP,
+                            et3k_start);                      // Envois de la commande de déblocage à l'ET3K
+      delay(10);                                              // Attente avant envois d'une nouvelle commande à l'ET3K
+    }
+
+    // Attribution du courant de consigne
+    if(hal.current != current) {                              // Le courant à changé
+      hal.current = current;                                  // Sauvegarde du courant
+      modbus_write_register(ET3K_ID,ET3K_SET_CURRENT,
+                            ET3K_CURRENT(current));           // Envois de la commande du courant de consigne à l'ET3K
+    }
+
+  }
+}
+
+/**
  * \fn CHARGE_STATE_EVSE_e hal_evse_get_state(void)
  */
 CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
@@ -50,9 +86,11 @@ CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
   CHARGE_STATE_EVSE_e ret;
   
   et3k_state = 
-        (CHARGE_STATE_ET3K_e)modbus_read_register(1,141);     // Lecture de l'état de l'ET3K
+        (CHARGE_STATE_ET3K_e)
+          modbus_read_register(ET3K_ID,ET3K_GET_STATE);       // Lecture de l'état de l'ET3K
 
-  switch(et3k_state) {                                        // Translation CHARGE_STATE_ET3K_e -> CHARGE_STATE_EVSE_e
+  // Interprêtation de l'état issue de l'énumération CHARGE_STATE_ET3K_e par la translation vers l'énumération CHARGE_STATE_EVSE_e
+  switch(et3k_state) {
     case et3k_ready:
       ret = evse_Not_Connected;
       break;
@@ -81,37 +119,6 @@ CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
 }
 
 /**
- * \fn void hal_lock_current(void)
- */
-void hal_lock_current(void) {
-  if(hal.lock)                                                // L'ETEK est déjà lock
-    return;                                                   // Echappement immédiat
-    
-  modbus_write_register(1,89,2);                              // Envois de la commande de lock
-  hal.lock = true;
-}
-
-/**
- * \fn void hal_set_current(uint8_t current)
- */
-void hal_set_current(uint8_t current) {
-  if(current < MINIMAL_CHARGE_CURRENT || current > MAXIMAL_CHARGE_CURRENT)
-    return;
-    
-  if(hal.lock) {                                              // L'ETEK est déjà lock
-    modbus_write_register(1,89,1);                            // Unlock de l'ETEK
-    hal.lock = false;
-    delay(50);
-  }
-
-  if(hal.current == current)                                  // Le courant n'a pas changé
-    return;                                                   // Echappement
-    
-  modbus_write_register(1,102,current*100);                   // Envois du courant à l'ET3K
-  hal.current = current;                                      // MAJ du courant
-}
-
-/**
  * \fn bool hal_get_reboot(void)
  */
 bool hal_get_reboot(void) {
@@ -122,6 +129,8 @@ bool hal_get_reboot(void) {
  * \fn void hal_uart_write(uint8_t *frame, uint8_t size)
  */
 void hal_uart_write(uint8_t *frame, uint8_t size) {
+  ET3K_UART.flush();                                          // Flush du buffer d'émission
+  while(ET3K_UART.available()) ET3K_UART.read();              // Flush du buffer de réception
   digitalWrite(GPIO_RE_DE,HIGH);                              // Positionnement du RE/DE pour TX
   ET3K_UART.write(frame,size);                                // Envois des données sur le BUS RS485
   delay(10);

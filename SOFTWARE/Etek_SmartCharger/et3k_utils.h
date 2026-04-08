@@ -4,6 +4,23 @@
 #include <stdint.h>
 #include "hal_utils.h"
 
+//< Define des registres ET3K
+#define ET3K_ID                 1
+#define ET3K_SET_START_STOP     89
+#define ET3K_GET_STATE          141
+#define ET3K_SET_CURRENT        109
+
+//< Define de translation de courant de consigne (ET3K_SET_CURRENT)
+#define ET3K_CURRENT(x)         (x*100)
+
+//< Enumération de la remote Strat/Stop
+enum
+{
+  et3k_invalid          = 0,
+  et3k_start            = 1,
+  et3k_stop             = 2
+};
+
 //< Enumération de l'état de charge de l'ET3K
 typedef enum 
 {
