@@ -1,9 +1,6 @@
 #include "et3k_utils.h"
 #include "hal_utils.h"
 
-//< Déclaration des variables globales
-static HAL_t hal;
-
 /**
  * \fn void hal_init(void)
  */
@@ -47,11 +44,9 @@ void hal_evse_update_input(void) {
  * \fn void hal_evse_update_output(uint8_t current)
  */
 void hal_evse_update_output(uint8_t current) {
+  static uint8_t previous_current;
+  
   if(current == 0) {                                          // Un blocage est demandé
-    if(hal.lock == true)                                      // L'ETEK à déjà été bloqué
-      return;                                                 // Echappement immédiat
-    hal.current = current;                                    // Réinitialisation du courant
-    hal.lock = true;                                          // Sauvegarde du blocage
     modbus_write_register(ET3K_ID,ET3K_SET_START_STOP,
                           et3k_stop);                         // Envois de la commande de blocage à l'ET3K
   } else {                                                    // Autrement, attribution du courant de consigne
@@ -60,21 +55,17 @@ void hal_evse_update_output(uint8_t current) {
     if(current < MINIMAL_CHARGE_CURRENT || current > MAXIMAL_CHARGE_CURRENT)
       return;                                                 // Echappement
 
-    // Déblocage de l'ET3K si nécessaire
-    if(hal.lock == true) {                                    // L'ETEK est bloqué
-      hal.lock = false;                                       // Sauvegarde du déblocage
-      modbus_write_register(ET3K_ID,ET3K_SET_START_STOP,
-                            et3k_start);                      // Envois de la commande de déblocage à l'ET3K
-      delay(10);                                              // Attente avant envois d'une nouvelle commande à l'ET3K
-    }
+	  // Déblocage de l'ET3K
+    modbus_write_register(ET3K_ID,ET3K_SET_START_STOP,
+                          et3k_start);                        // Envois de la commande de déblocage à l'ET3K
 
     // Attribution du courant de consigne
-    if(hal.current != current) {                              // Le courant à changé
-      hal.current = current;                                  // Sauvegarde du courant
+    if(previous_current != current) {                         // Le courant à changé
+	    delay(5);                                               // Attente avant envois d'une nouvelle commande à l'ET3K
       modbus_write_register(ET3K_ID,ET3K_SET_CURRENT,
                             ET3K_CURRENT(current));           // Envois de la commande du courant de consigne à l'ET3K
+	    previous_current = current;                             // Sauvegarde du courant
     }
-
   }
 }
 

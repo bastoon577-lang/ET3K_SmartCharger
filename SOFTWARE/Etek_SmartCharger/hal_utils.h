@@ -27,13 +27,6 @@ typedef enum
   evse_Fault,
 }CHARGE_STATE_EVSE_e;
 
-//< Structure de données HAL
-typedef struct
-{
-  uint8_t current;                                      // La dernière valeur de courant envoyée
-  bool lock;                                            // L'état du blocage ETEK
-}HAL_t;
-
 /**
  * \fn void hal_init(void)
  * \brief Fonction permettant d'initialiser la HAL

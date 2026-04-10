@@ -55,6 +55,8 @@ uint16_t modbus_read_register(uint8_t slave, uint16_t reg) {
 void modbus_write_register(uint8_t slave, uint16_t reg, uint16_t value) {
   uint16_t computed_crc;
   uint8_t frame[8];
+  uint8_t resp[7];
+  int len;
   
   frame[0] = slave;                                           // Ajout de l'ID Slave
   frame[1] = 0x06;                                            // Ajout de l'Opcode d'Ecriture Registre
@@ -68,4 +70,6 @@ void modbus_write_register(uint8_t slave, uint16_t reg, uint16_t value) {
   frame[7] = computed_crc >> 8;                               // Ajout du CRC (LSB)
   
   hal_uart_write((uint8_t *)frame,8);                         // Envois sur le BUS RS485
+
+  len = hal_uart_read_byte((uint8_t *)resp,7);                // Lecture du BUS RS485
 }

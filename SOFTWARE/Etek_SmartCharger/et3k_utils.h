@@ -10,8 +10,8 @@
 #define ET3K_GET_STATE          141
 #define ET3K_SET_CURRENT        109
 
-//< Define de translation de courant de consigne (ET3K_SET_CURRENT)
-#define ET3K_CURRENT(x)         (x*100)
+//< Define de translation de courant de consigne en PWM (ET3K_SET_CURRENT)
+#define ET3K_CURRENT(x)         ((x*1000)/6)
 
 //< Enumération de la remote Strat/Stop
 enum
