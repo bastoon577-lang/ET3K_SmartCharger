@@ -83,15 +83,12 @@ CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
   // Interprêtation de l'état issue de l'énumération CHARGE_STATE_ET3K_e par la translation vers l'énumération CHARGE_STATE_EVSE_e
   switch(et3k_state) {
     case et3k_ready:
-      ret = evse_Not_Connected;
-      break;
+      return evse_Not_Connected;
     case et3k_connected_1:
     case et3k_connected_2:
-      ret = evse_Connected;
-      break;
+      return evse_Connected;
     case et3k_charging:
-      ret = evse_Charging;
-      break;
+      return evse_Charging;
     case et3k_rfid_waiting:
     case et3k_fault_1:
     case et3k_fault_2:
@@ -102,11 +99,11 @@ CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
     case et3k_fault_7:
     case et3k_fault_8:
     case et3k_fault_9:
+	    return evse_Fault;
     default:
-      ret = evse_Fault;
-      break;
+      return evse_Com_Fault;
   }
-  return ret;
+  return evse_Fault;
 }
 
 /**

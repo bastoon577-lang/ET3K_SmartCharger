@@ -25,6 +25,7 @@ typedef enum
   evse_Connected,
   evse_Charging,
   evse_Fault,
+  evse_Com_Fault,
 }CHARGE_STATE_EVSE_e;
 
 /**
