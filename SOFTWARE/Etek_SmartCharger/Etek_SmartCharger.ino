@@ -83,7 +83,8 @@ static void html_generate_exploitation_page() {
   web_server.sendContent(F("  <script>\n"));
   if(!volatile_conf.theme)
     web_server.sendContent(F("  document.body.classList.add('theme-dark');\n"));
-  web_server.sendContent("  setLimitCurrent('lim_current',"+String(READ_OFFSET_5B(volatile_conf.limited_current))+");");
+  web_server.sendContent("  setCurrent('lim_current',"+String(READ_OFFSET_5B(volatile_conf.limite_current))+");");
+  web_server.sendContent("  setCurrent('deg_current',"+String(READ_OFFSET_5B(volatile_conf.degraded_current))+");");
   web_server.sendContent(FPSTR(scriptsCommon));
   web_server.sendContent(FPSTR(scriptsPageExploit));
   
@@ -133,13 +134,11 @@ static void html_generate_exploitation_page() {
   }
 
   // Gestion des boutons (Changement dynamique par script JS)
-  if(volatile_conf.tic_slaved)
-    web_server.sendContent(F("    updateButton(\"slave\",{clicked:true});\n"));
   if(volatile_conf.off_peak_hours)
     web_server.sendContent(F("    updateButton(\"offpe\",{clicked:true});\n"));
   if(!static_conf.is_tic_module_used) {
-    web_server.sendContent(F("    updateButton(\"slave\",{hidden:true});\n"));
     web_server.sendContent(F("    updateButton(\"offpe\",{hidden:true});\n"));
+    web_server.sendContent(F("    document.getElementById(\"deg_sect\").style.display = \"None\";\n"));
   }
   web_server.sendContent("    initWebSocket("+String(static_conf.portWs)+");\n");
   web_server.sendContent(F("  };\n"));
@@ -183,19 +182,25 @@ static void handle_action_exploitation_button() {
   String post_data = web_server.arg("data");
   if(post_data.endsWith("theme"))
     volatile_conf.theme = !volatile_conf.theme;
-  else if(post_data.endsWith("slave"))
-    volatile_conf.tic_slaved = !volatile_conf.tic_slaved;
   else if(post_data.endsWith("offpe"))
     volatile_conf.off_peak_hours = !volatile_conf.off_peak_hours;
-  else if(post_data.endsWith("limcm")) {
-    if(READ_OFFSET_5B(volatile_conf.limited_current) > MINIMAL_CHARGE_CURRENT)
-      volatile_conf.limited_current--;
-  }
-  else if(post_data.endsWith("limcp")) {
-    if(READ_OFFSET_5B(volatile_conf.limited_current) < MAXIMAL_CHARGE_CURRENT) 
-      volatile_conf.limited_current++;
-  }
-  else if(post_data.endsWith("reset"))
+  else if(post_data.startsWith("degc")) {
+    if(post_data.charAt(post_data.length()-1) == 'm') {
+      if(READ_OFFSET_5B(volatile_conf.degraded_current) > MINIMAL_CHARGE_CURRENT)
+        volatile_conf.degraded_current--;
+    } else {
+      if(READ_OFFSET_5B(volatile_conf.degraded_current) < MAXIMAL_CHARGE_CURRENT) 
+        volatile_conf.degraded_current++;
+     }
+  } else if(post_data.startsWith("limc")) {
+    if(post_data.charAt(post_data.length()-1) == 'm') {
+      if(READ_OFFSET_5B(volatile_conf.limite_current) > MINIMAL_CHARGE_CURRENT)
+        volatile_conf.limite_current--;
+    } else {
+      if(READ_OFFSET_5B(volatile_conf.limite_current) < MAXIMAL_CHARGE_CURRENT) 
+        volatile_conf.limite_current++;
+     }
+  } else if(post_data.endsWith("reset"))
   {
     erase_eeprom_and_reboot();
   }
@@ -296,8 +301,9 @@ void setup() {
     web_server.on("/", HTTP_GET, []() {
       html_generate_exploitation_page();
     });
-    web_server.on("/slave",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/offpe",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/degcm",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/degcp",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/limcm",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/limcp",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/theme",HTTP_POST,handle_action_exploitation_button);
