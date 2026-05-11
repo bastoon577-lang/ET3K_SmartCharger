@@ -15,7 +15,7 @@
 //< Déclaration des variables globales
 static VOLATILE_CONF_FIELDS_t volatile_conf;
 static STATIC_CONF_FIELDS_t static_conf;
-static ESP8266WebServer web_server(80);
+static ESP8266WebServer web_server(0);
 static TIC_CONF_FIELDS_t tic_conf;
 static short wifi_equipments;
 static bool dhcp_enable;
@@ -95,7 +95,7 @@ static void html_generate_exploitation_page() {
   web_server.sendContent(F("    createTable(\"tab1\");\n"));
   web_server.sendContent("    addTableRow(\"tab1\",\"Matériel\",\""+String(HW_NAME)+"\");\n");
   web_server.sendContent("    addTableRow(\"tab1\",\"Logiciel\",\""+String(V_LOGICIEL)+"\");\n");
-  str_to_write = (static_conf.which_voltage)?"400V Triphasé":"230V Monophasé";
+  str_to_write = (static_conf.which_voltage)?"400V Triphasés":"240V Monophasé";
   web_server.sendContent("    addTableRow(\"tab1\",\"Réseau électrique\",\""+str_to_write+"\");\n");
 
   // Paramètres réseau du SmartCharger
@@ -168,7 +168,7 @@ static void html_generate_configuration_page() {
   web_server.sendContent(FPSTR(scriptsCommon));
   web_server.sendContent(FPSTR(scriptsPageConfig));
   for(uint8_t i=0;i<wifi_equipments;i++)
-    web_server.sendContent("    addWifiSpot(\""+WiFi.SSID(i)+"\");\n");
+    web_server.sendContent("  addWifiSpot(\""+WiFi.SSID(i)+"\");\n");
   web_server.sendContent(F("  </script>\n"));
   web_server.sendContent(F("</body>\n"));
   web_server.sendContent(F("</html>"));
@@ -246,6 +246,10 @@ static void handle_action_configuration_input() {
     strncpy(static_conf.SmPass,web_server.arg("pass").c_str(),sizeof(static_conf.SmPass)-1);
   else if(web_server.arg("hot1").length() > 0)
     strncpy(static_conf.Hostname,web_server.arg("hot1").c_str(),sizeof(static_conf.Hostname)-1);
+  else if(web_server.arg("por1").length() > 0)
+    static_conf.port = web_server.arg("por1").toInt();
+  else if(web_server.arg("por2").length() > 0)
+    static_conf.portWs = web_server.arg("por2").toInt();
   else if(web_server.arg("Cha").length() > 0)
   {
     if(web_server.arg("ip").length() == 15)
@@ -320,7 +324,7 @@ void setup() {
     memcpy(&static_conf.Hostname,AP_SSID,sizeof(AP_SSID));              // Sauvegarde du Hostname par defaut
     memcpy(&static_conf.SmSsid,AP_SSID,sizeof(AP_SSID));                // Sauvegarde du SSID par defaut
     memcpy(&static_conf.SmPass,AP_PASS,sizeof(AP_PASS));                // Sauvegarde du Password par defaut
-    static_conf.portWs = 81;                                            // Sauvegarde du Port WebSocket par defaut
+    static_conf.portWs = 443;                                           // Sauvegarde du Port WebSocket par defaut
     static_conf.port   = 80;                                            // Sauvegarde du Port Web par defaut
 
     // Initialisation de la page de configuration
@@ -335,6 +339,8 @@ void setup() {
     web_server.on("/wif1",HTTP_POST,handle_action_configuration_button);
     web_server.on("/adv0",HTTP_POST,handle_action_configuration_input);
     web_server.on("/hot1",HTTP_POST,handle_action_configuration_input);
+    web_server.on("/por1",HTTP_POST,handle_action_configuration_input);
+    web_server.on("/por2",HTTP_POST,handle_action_configuration_input);
     web_server.on("/ssi1",HTTP_POST,handle_action_configuration_input);
     web_server.on("/pas1",HTTP_POST,handle_action_configuration_input);
     web_server.on("/end",HTTP_POST,handle_action_configuration_button);
@@ -345,7 +351,7 @@ void setup() {
   sm_charger_init(&static_conf,&volatile_conf);                         // Initialisation du service Charger
   ArduinoOTA.setHostname(static_conf.Hostname);                         // Initialisation du Hostname OTA
   WiFi.hostname(static_conf.Hostname);                                  // Initialisation du Hostname Web
-  web_server.begin();                                                   // Activation du serveur Web
+  web_server.begin(static_conf.port);                                   // Activation du serveur Web
   ArduinoOTA.begin();                                                   // Activation du service OTA
 }
 
