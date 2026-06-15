@@ -4,6 +4,16 @@ Développement d'un système de recharge VE basé sur les plateformes :
 * [ESP01](https://www.captain-arduino.fr/esp8266-01s/),
 * [ET3K](https://fr.aliexpress.com/item/1005003433694455.html?dp=Cj0KCQjwj47OBhCmARIsAF5wUEExlk60GLalFcOgMwSaBVl6OryrBLvnEhBZIN-G9wakJbBSW7m_WWwaArpIEALw_wcB@251641&isdl=y&aff_fsk=_on9NVyV&src=Delupe3&aff_platform=aff_feeds&aff_short_key=_on9NVyV&pdp_npi=4%40dis%21EUR%2120.96%2120.79%21%21%21%21%21%40%2112000034155484243%21afff%21%21%21&gatewayAdapt=glo2fra&cn=251641&cv=461959&af=).
 
+J'ai réalisé une carte électronique **SmartCharger** à pluger sur les borniers de l'équippement ET3K.
+<div align="center"><img width="973" height="626" alt="SmartCharger" src="https://github.com/user-attachments/assets/f72fbf5d-9891-49cb-9498-30be793321af" /></div>
+
+La carte **SmartCharger** embarque :
+ * Un ESP01 (cerveau du système offrant une communication sur les réseaux Wifi),
+ * Un convertisseur DC/DC (adaptation en tension de sortie ET3K 5V -> 3V3),
+ * Un bouton poussoir de Reset,
+ * Un convertisseur RS485/UART (communication ESP01 <-> ET3K),
+ * Connecteur embrochable sur les borniers de l'ET3K.
+
 *******
 
 Table des matières
