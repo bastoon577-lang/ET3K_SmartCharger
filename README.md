@@ -55,7 +55,7 @@ git submodule update --init --recursive
 
 J'ai mis à disposition les sources complètes (BOM, GERBER, etc.) pour la reproduction du PCB **SmartCharger** [ici](https://oshwlab.com/sebastiendaligault577/project_hyqsfkqb) que j'ai fait imprimé chez [JLCPCB](https://jlcpcb.com/fr/?from=t1_france&gad_source=1&gad_campaignid=22816912221&gclid=CjwKCAjwxb7RBhA5EiwAQ-AAdAA14H3HSPcA5iJi0b9ELBZxiE4g4ar-gzyYgUTeqq2lm2xu-K8XbBoCG00QAvD_BwE).
 
-J'en ai évidement quelques exemplaires n'hésitez pas à rentrer en contact avec moi en MP :wink:
+J'ai du matériel à disposition, pour plus d'informations [rentrer en contact avec moi en MP](https://github.com/bastoon577-lang/ET3K_SmartCharger/wiki/Fourniture-Hardware) :wink:
 
 <div id='build'/> 
 
