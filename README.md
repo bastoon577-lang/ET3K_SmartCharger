@@ -19,9 +19,10 @@ La carte **SmartCharger** embarque :
 Table des matières
  1. [Mes motivations](#motivation)
  2. [Concept du SmartCharger](#concept)
- 3. [Clone du projet](#clone)
- 4. [Reproduction hardware](#hard)
- 5. [Compilation du projet](#build)
+ 3. [Notice d'utilisation](#useit)
+ 4. [Clone du projet](#clone)
+ 5. [Reproduction hardware](#hard)
+ 6. [Compilation du projet](#build)
 *******
 
 <div id='motivation'/> 
@@ -37,6 +38,11 @@ J'ai souhaité développer un système de recharge intelligent pour véhicule é
 Veuillez consulter le [Wiki du projet](https://github.com/bastoon577-lang/ET3K_SmartCharger/wiki) pour plus d'informations concernant le concept.
 
 Ce projet fonctionne de paire avec le projet [Module TIC](https://github.com/bastoon577-lang/Module_TIC/wiki), et permet la lecture des données issues du compteur Linky au travers du réseau LAN en utilisant le réseau Wifi.
+
+<div id='useit'/> 
+
+## Notice d'utilisation
+Veuillez consulter la [notice d'utilisation](https://github.com/bastoon577-lang/Module_TIC/blob/main/USER_MANUAL/Notice%20Module%20TIC.pdf) pour plus d'informations.
 
 <div id='clone'/> 
 
