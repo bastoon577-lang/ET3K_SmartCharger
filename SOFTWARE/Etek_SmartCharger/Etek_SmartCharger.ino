@@ -372,7 +372,7 @@ void loop() {
   
   // Néanmoins, dans tous les cas, il est nécessaire d'effectuer les services suivants ...
   web_server.handleClient();                                            // Handler du service Web
-  if(!sm_charger_is_charge_active())                                    // MAJ uniquement lorsqu'aucune charge n'est en cours !
+  if(!sm_charger_prevent_updates())                                     // La mise à jour est possible ?
     ArduinoOTA.handle();                                                // Handler du service OTA
   reboot_handler();                                                     // Handler du service Reboot
 }
