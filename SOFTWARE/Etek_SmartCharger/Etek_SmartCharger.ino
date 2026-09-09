@@ -1,16 +1,19 @@
 #include <ESP8266WebServer.h>
 #include <ArduinoOTA.h>
+#include <DNSServer.h>
 
 #include "src/smartcharger/sm_charger_utils.h"
 #include "src/smartcharger/websocket_utils.h"
 #include "src/smartcharger/eeprom_utils.h"
-#include "src/smartcharger/common_utils.h"
 #include "src/smartcharger/reboot_utils.h"
+#include "src/smartcharger/common_sm.h"
 
 #include "src/ihm/configuration_page.h"
 #include "src/ihm/exploitation_page.h"
 #include "src/ihm/css_steel_sheet.h"
 #include "src/ihm/common.h"
+
+#include "common_utils.h"
 
 //< Déclaration des variables globales
 static VOLATILE_CONF_FIELDS_t volatile_conf;
@@ -18,6 +21,7 @@ static STATIC_CONF_FIELDS_t static_conf;
 static ESP8266WebServer web_server(0);
 static TIC_CONF_FIELDS_t tic_conf;
 static short wifi_equipments;
+static DNSServer dns_server;
 static bool dhcp_enable;
 
 /**
@@ -270,7 +274,7 @@ static void handle_action_configuration_input() {
 }
 
 void setup() {
-  const uint8_t null_ip[4] = {0,0,0,0};
+  const uint8_t null_ip[4] = {0,0,0,0};                                 // Vecteur d'IP NULL
   dhcp_enable = 0;
 
   hal_init();                                                           // Initialisation de la HAL
@@ -299,7 +303,10 @@ void setup() {
       WiFi.begin(static_conf.SmSsid,static_conf.SmPass);                // Connexion au réseau
     }
     else                                                                // Aucun reseau Wifi n'est configué                                              
+    {
+      WiFi.mode(WIFI_AP);                                               // Forçage en mode Access Point
       WiFi.softAP(static_conf.SmSsid,static_conf.SmPass,AP_CHANNEL,AP_VISIBILITE,AP_MAX_CONN); // Creation du Hotspot    
+    }
 
     // Initialisation de la page d'exploitation
     web_server.on("/", HTTP_GET, []() {
@@ -320,7 +327,13 @@ void setup() {
   }
   else                                                                  // L'equipement est vierge
   {
+    IPAddress ap_ip(192,168,4,1);                                       // Forçage de l'IP AP en 192.168.4.1
+    WiFi.mode(WIFI_AP);                                                 // Forçage en mode Access Point
+    WiFi.softAPConfig(ap_ip,ap_ip,IPAddress(255,255,255,0));            // Configuration de l'AP
     WiFi.softAP(AP_SSID,AP_PASS,AP_CHANNEL,AP_VISIBILITE,AP_MAX_CONN);  // Creation du Hotspot SmartCharger
+
+    dns_server.start(AP_DNS_CAPTIVE_PORTAL,"*",ap_ip);                  // Démarrage du serveur DNS (Redirige * vers l'IP de l'AP)
+    
     memcpy(&static_conf.Hostname,AP_SSID,sizeof(AP_SSID));              // Sauvegarde du Hostname par defaut
     memcpy(&static_conf.SmSsid,AP_SSID,sizeof(AP_SSID));                // Sauvegarde du SSID par defaut
     memcpy(&static_conf.SmPass,AP_PASS,sizeof(AP_PASS));                // Sauvegarde du Password par defaut
@@ -345,6 +358,12 @@ void setup() {
     web_server.on("/pas1",HTTP_POST,handle_action_configuration_input);
     web_server.on("/end",HTTP_POST,handle_action_configuration_button);
 
+    // Redirection des requêtes de détection de portail captif
+    web_server.onNotFound([]() {
+      web_server.sendHeader("Location","http://192.168.4.1/",true);
+      web_server.send(302,"text/plain","");
+    });
+
     wifi_equipments = WiFi.scanNetworks();                              // Scan des reseaux Wifi disponibles
   }
   
@@ -359,6 +378,7 @@ void loop() {
   static unsigned long timer_scan_network = millis();
   
   if(!static_conf.is_configured) {                                      // L'équipement n'est pas configuré
+    dns_server.processNextRequest();                                    // Traitement des requêtes DNS du portail captif
     if(millis() - timer_scan_network >= TIMEOUT_SCAN_NETWORK) {
       wifi_equipments = WiFi.scanNetworks();                            // Scan des reseaux Wifi disponibles
       timer_scan_network = millis();
