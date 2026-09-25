@@ -138,10 +138,16 @@ static void html_generate_exploitation_page() {
   }
 
   // Gestion des boutons (Changement dynamique par script JS)
+  if(volatile_conf.off_super_peak_hours)
+    web_server.sendContent(F("    updateButton(\"offps\",{clicked:true});\n"));
   if(volatile_conf.off_peak_hours)
     web_server.sendContent(F("    updateButton(\"offpe\",{clicked:true});\n"));
+  if(volatile_conf.solar_active)
+    web_server.sendContent(F("    updateButton(\"solar\",{clicked:true});\n"));
   if(!static_conf.is_tic_module_used) {
+    web_server.sendContent(F("    updateButton(\"offps\",{hidden:true});\n"));
     web_server.sendContent(F("    updateButton(\"offpe\",{hidden:true});\n"));
+    web_server.sendContent(F("    updateButton(\"solar\",{hidden:true});\n"));
     web_server.sendContent(F("    document.getElementById(\"deg_sect\").style.display = \"None\";\n"));
   }
   web_server.sendContent("    initWebSocket("+String(static_conf.portWs)+");\n");
@@ -186,8 +192,12 @@ static void handle_action_exploitation_button() {
   String post_data = web_server.arg("data");
   if(post_data.endsWith("theme"))
     volatile_conf.theme = !volatile_conf.theme;
+  else if(post_data.endsWith("offps"))
+    volatile_conf.off_super_peak_hours = !volatile_conf.off_super_peak_hours;
   else if(post_data.endsWith("offpe"))
     volatile_conf.off_peak_hours = !volatile_conf.off_peak_hours;
+  else if(post_data.endsWith("solar"))
+    volatile_conf.solar_active = !volatile_conf.solar_active;
   else if(post_data.startsWith("degc")) {
     if(post_data.charAt(post_data.length()-1) == 'm') {
       if(READ_OFFSET_5B(volatile_conf.degraded_current) > MINIMAL_CHARGE_CURRENT)
@@ -312,7 +322,9 @@ void setup() {
     web_server.on("/", HTTP_GET, []() {
       html_generate_exploitation_page();
     });
+    web_server.on("/offps",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/offpe",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/solar",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/degcm",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/degcp",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/limcm",HTTP_POST,handle_action_exploitation_button);
@@ -322,7 +334,7 @@ void setup() {
 
     ws_server_init(static_conf.portWs);                                 // Initialisation du service WebSocket Server
     if(static_conf.is_tic_module_used) {                                // Un Module TIC est-il configuré ?
-      ws_client_init(&tic_conf);                                        // Initialisation du service WebSocket Client
+      ws_client_init(&tic_conf,&static_conf);                           // Initialisation du service WebSocket Client
     }
   }
   else                                                                  // L'equipement est vierge
