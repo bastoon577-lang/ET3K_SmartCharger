@@ -5,7 +5,7 @@
 #include "hal_utils.h"
 
 //< Define des registres ET3K
-#define ET3K_ID                 1
+#define ET3K_ID                 255
 #define ET3K_SET_START_STOP     89
 #define ET3K_GET_STATE          141
 #define ET3K_SET_CURRENT        109
