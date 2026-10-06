@@ -2,7 +2,7 @@
 #define __COMMON_UTILS__
 
 //< MACRO de version logicielle ETEK
-#define V_LOGICIEL                "v1.0.4"              // Version Logicielle
+#define V_LOGICIEL                "v1.0.5"              // Version Logicielle
 
 //< MACRO du Mode Access Point
 #define AP_SSID                   "SmartCharger"        // SSID SmartCharger Access Point
