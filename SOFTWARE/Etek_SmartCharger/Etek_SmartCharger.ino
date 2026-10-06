@@ -71,117 +71,182 @@ static void erase_eeprom_and_reboot(void) {
 }
 
 /**
+ * \fn void sendContentChunked(const char* p, bool isProgmem = true, size_t chunkSize = 512)
+ * \brief Fonction permettant de splitter une chaîne de caractère (RAM ou PROGMEM) au serveur Web par morceaux.
+ * \param in, Le pointeur vers la chaine de caractères
+ * \param in, is_progmem lorsque la données est en mémoire Flash (PROGMEM / FPSTR / F()) (En PROGMEM par défaut)
+ * \param in, chunk_size la taille des blocs à envoyer (512 octets par défaut)
+ */
+static void sendContentChunked(const char* p, bool is_progmem = true, size_t chunk_size = 512) {
+  if (!p) return;
+
+  size_t len=(is_progmem)?strlen_P(p):strlen(p);
+  char buffer[chunk_size];
+
+  for(size_t i=0;i<len;i+=chunk_size) {
+    size_t chunk=((len-i)<chunk_size)?(len-i):chunk_size;
+    
+    if(is_progmem) {
+      memcpy_P(buffer,p+i,chunk);
+      web_server.sendContent(buffer,chunk);
+    } else {
+      web_server.sendContent(p+i,chunk);
+    }
+  }
+}
+
+/**
  * \fn void html_generate_exploitation_page(void)
  * \brief Fonction de generation du flux HTML/CSS/JS pour la page d'exploitation.
  */
-static void html_generate_exploitation_page() {
+static void html_generate_exploitation_page(void) {
   web_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   
-  web_server.sendContent(FPSTR(htmlHeader));
+  sendContentChunked(htmlHeader);
   web_server.sendContent(F("<style>"));
-  web_server.sendContent(FPSTR(cssSteelSheet));
-  web_server.sendContent(F("</style>\n"));
-  web_server.sendContent(F("</head>\n"));
-  web_server.sendContent(F("<body>"));
-  web_server.sendContent(FPSTR(htmlPageExploit));
+  sendContentChunked(cssSteelSheet);
+  web_server.sendContent(F("</style>\n</head>\n<body>"));
+  sendContentChunked(htmlPageExploit);
   web_server.sendContent(F("  <script>\n"));
+
   if(!volatile_conf.theme)
     web_server.sendContent(F("  document.body.classList.add('theme-dark');\n"));
-  web_server.sendContent("  setCurrent('lim_current',"+String(READ_OFFSET_5B(volatile_conf.limite_current))+");");
-  web_server.sendContent("  setCurrent('deg_current',"+String(READ_OFFSET_5B(volatile_conf.degraded_current))+");");
-  web_server.sendContent(FPSTR(scriptsCommon));
-  web_server.sendContent(FPSTR(scriptsPageExploit));
-  
-  // Visualisation des donnees en table
-  String str_to_write = "";
-  
+
+  // Envoi direct des valeurs sans instancier d'objets String
+  web_server.sendContent(F("  setCurrent('lim_current',"));
+  web_server.sendContent(String(READ_OFFSET_5B(volatile_conf.limite_current)));
+  web_server.sendContent(F(");\n  setCurrent('deg_current',"));
+  web_server.sendContent(String(READ_OFFSET_5B(volatile_conf.degraded_current)));
+  web_server.sendContent(F(");\n"));
+
+  sendContentChunked(scriptsCommon);
+  sendContentChunked(scriptsPageExploit);
+
   // Paramètres généraux
   web_server.sendContent(F("    createTable(\"tab1\");\n"));
-  web_server.sendContent("    addTableRow(\"tab1\",\"Matériel\",\""+String(HW_NAME)+"\");\n");
-  web_server.sendContent("    addTableRow(\"tab1\",\"Logiciel\",\""+String(V_LOGICIEL)+"\");\n");
-  str_to_write = (static_conf.which_voltage)?"400V Triphasés":"240V Monophasé";
-  web_server.sendContent("    addTableRow(\"tab1\",\"Réseau électrique\",\""+str_to_write+"\");\n");
+  web_server.sendContent(F("    addTableRow(\"tab1\",\"Matériel\",\""));
+  web_server.sendContent(HW_NAME);
+  web_server.sendContent(F("\");\n    addTableRow(\"tab1\",\"Logiciel\",\""));
+  web_server.sendContent(V_LOGICIEL);
+  web_server.sendContent(F("\");\n    addTableRow(\"tab1\",\"Réseau électrique\",\""));
+  web_server.sendContent(static_conf.which_voltage ? F("400V Triphasés") : F("240V Monophasé"));
+  web_server.sendContent(F("\");\n"));
 
   // Paramètres réseau du SmartCharger
   web_server.sendContent(F("    createTable(\"tab2\");\n"));
-  str_to_write = (dhcp_enable)?"Actif":"Inactif";
-  web_server.sendContent("    addTableRow(\"tab2\",\"DHCP\",\""+str_to_write+"\");\n");
-  web_server.sendContent("    addTableRow(\"tab2\",\"Hostname\",\""+String(static_conf.Hostname)+"\");\n");
-  web_server.sendContent("    addTableRow(\"tab2\",\"MAC\",\""+String(WiFi.macAddress())+"\");\n");
-  str_to_write = (dhcp_enable)?WiFi.localIP().toString():ip_stringification(static_conf.address);
-  uint8_t defaultAdr[4] = {192,168,4,1};
-  str_to_write = (!static_conf.is_wifi_network_used)?ip_stringification(defaultAdr):str_to_write;
-  web_server.sendContent("    addTableRow(\"tab2\",\"IPv4\",\""+str_to_write+"\");\n");
-  str_to_write = (dhcp_enable)?WiFi.subnetMask().toString():ip_stringification(static_conf.subnet);
-  uint8_t defaultSub[4] = {255,255,255,0};
-  str_to_write = (!static_conf.is_wifi_network_used)?ip_stringification(defaultSub):str_to_write;
-  web_server.sendContent("    addTableRow(\"tab2\",\"Masque de sous réseau\",\""+str_to_write+"\");\n");
-  str_to_write = (dhcp_enable)?WiFi.gatewayIP().toString():ip_stringification(static_conf.gateway);
-  uint8_t defaultGat[4] = {192,168,4,1};
-  str_to_write = (!static_conf.is_wifi_network_used)?ip_stringification(defaultGat):str_to_write;
-  web_server.sendContent("    addTableRow(\"tab2\",\"Passerelle par défaut\",\""+str_to_write+"\");\n");
-  web_server.sendContent("    addTableRow(\"tab2\",\"Port Web\",\""+String(static_conf.port)+"\");\n");
-  web_server.sendContent("    addTableRow(\"tab2\",\"Port WebSocket\",\""+String(static_conf.portWs)+"\");\n");
-  
+  web_server.sendContent(F("    addTableRow(\"tab2\",\"DHCP\",\""));
+  web_server.sendContent(dhcp_enable ? F("Actif") : F("Inactif"));
+  web_server.sendContent(F("\");\n    addTableRow(\"tab2\",\"Hostname\",\""));
+  web_server.sendContent(static_conf.Hostname);
+  web_server.sendContent(F("\");\n    addTableRow(\"tab2\",\"MAC\",\""));
+  web_server.sendContent(WiFi.macAddress());
+  web_server.sendContent(F("\");\n"));
 
-  // Paramètres réseau du Module TIC
-  web_server.sendContent(F("    createTable(\"tab3\");\n"));
-  if(!static_conf.is_tic_module_used)
-    str_to_write = "Inactif";
+  // IP
+  web_server.sendContent(F("    addTableRow(\"tab2\",\"IPv4\",\""));
+  if(!static_conf.is_wifi_network_used)
+    web_server.sendContent(F("192.168.4.1"));
   else
-    str_to_write = (ws_client_is_connected())?"Connecté":"Déconnecté";
-  web_server.sendContent("    addTableRow(\"tab3\",\"Etat\",\""+str_to_write+"\");\n");
-  if(static_conf.is_tic_module_used)
-  {
-    web_server.sendContent("    addTableRow(\"tab3\",\"Hostname / IPv4\",\""+String(tic_conf.ip_or_hostname)+"\");\n");
-    web_server.sendContent("    addTableRow(\"tab3\",\"Port WebSocket\",\""+String(tic_conf.portWs)+"\");\n");
+    web_server.sendContent(dhcp_enable ? WiFi.localIP().toString() : ip_stringification(static_conf.address));
+    
+  web_server.sendContent(F("\");\n"));
+
+  // Masque de sous-réseau
+  web_server.sendContent(F("    addTableRow(\"tab2\",\"Masque de sous réseau\",\""));
+  if (!static_conf.is_wifi_network_used)
+    web_server.sendContent(F("255.255.255.0"));
+  else
+    web_server.sendContent(dhcp_enable ? WiFi.subnetMask().toString() : ip_stringification(static_conf.subnet));
+    
+  web_server.sendContent(F("\");\n"));
+
+  // Passerelle
+  web_server.sendContent(F("    addTableRow(\"tab2\",\"Passerelle par défaut\",\""));
+  if (!static_conf.is_wifi_network_used)
+    web_server.sendContent(F("192.168.4.1"));
+  else
+    web_server.sendContent(dhcp_enable ? WiFi.gatewayIP().toString() : ip_stringification(static_conf.gateway));
+
+  web_server.sendContent(F("\");\n"));
+
+  // Ports
+  web_server.sendContent(F("    addTableRow(\"tab2\",\"Port Web\",\""));
+  web_server.sendContent(String(static_conf.port));
+  web_server.sendContent(F("\");\n    addTableRow(\"tab2\",\"Port WebSocket\",\""));
+  web_server.sendContent(String(static_conf.portWs));
+  web_server.sendContent(F("\");\n"));
+
+  // Module TIC
+  web_server.sendContent(F("    createTable(\"tab3\");\n"));
+  web_server.sendContent(F("    addTableRow(\"tab3\",\"Etat\",\""));
+  if (!static_conf.is_tic_module_used)
+    web_server.sendContent(F("Inactif"));
+  else
+    web_server.sendContent(ws_client_is_connected() ? F("Connecté") : F("Déconnecté"));
+
+  web_server.sendContent(F("\");\n"));
+
+  if (static_conf.is_tic_module_used) {
+    web_server.sendContent(F("    addTableRow(\"tab3\",\"Hostname / IPv4\",\""));
+    web_server.sendContent(tic_conf.ip_or_hostname);
+    web_server.sendContent(F("\");\n    addTableRow(\"tab3\",\"Port WebSocket\",\""));
+    web_server.sendContent(String(tic_conf.portWs));
+    web_server.sendContent(F("\");\n"));
   }
 
-  // Gestion des boutons (Changement dynamique par script JS)
-  if(volatile_conf.off_super_peak_hours)
-    web_server.sendContent(F("    updateButton(\"offps\",{clicked:true});\n"));
-  if(volatile_conf.off_peak_hours)
-    web_server.sendContent(F("    updateButton(\"offpe\",{clicked:true});\n"));
-  if(volatile_conf.solar_active)
-    web_server.sendContent(F("    updateButton(\"solar\",{clicked:true});\n"));
-  if(!static_conf.is_tic_module_used) {
-    web_server.sendContent(F("    updateButton(\"offps\",{hidden:true});\n"));
-    web_server.sendContent(F("    updateButton(\"offpe\",{hidden:true});\n"));
-    web_server.sendContent(F("    updateButton(\"solar\",{hidden:true});\n"));
+  // Boutons
+  if (sm_charger_get_force_charge())                  web_server.sendContent(F("    updateButton(\"force\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_standards)     web_server.sendContent(F("    updateButton(\"offp0\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_blues)         web_server.sendContent(F("    updateButton(\"offp1\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_whites)        web_server.sendContent(F("    updateButton(\"offp2\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_reds)          web_server.sendContent(F("    updateButton(\"offp3\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_super)         web_server.sendContent(F("    updateButton(\"offp4\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_weekends)      web_server.sendContent(F("    updateButton(\"offp5\",{clicked:true});\n"));
+  if (volatile_conf.off_peak_hours.off_wednesday)     web_server.sendContent(F("    updateButton(\"offp6\",{clicked:true});\n"));
+  if (volatile_conf.solar_active)                     web_server.sendContent(F("    updateButton(\"solar\",{clicked:true});\n"));
+
+  if (!static_conf.is_tic_module_used) {
     web_server.sendContent(F("    document.getElementById(\"deg_sect\").style.display = \"None\";\n"));
+    web_server.sendContent(F("    updateButton(\"force\",{hidden:true});\n"));
+    web_server.sendContent(F("    updateButton(\"solar\",{hidden:true});\n"));
+    web_server.sendContent(F("    removeContainer(3);\n"));
   }
-  web_server.sendContent("    initWebSocket("+String(static_conf.portWs)+");\n");
-  web_server.sendContent(F("  };\n"));
-  web_server.sendContent(FPSTR(scriptsPageExploitExtend));
-  web_server.sendContent(F("  </script>\n"));
-  web_server.sendContent(F("</body>\n"));
-  web_server.sendContent(F("</html>"));
-  web_server.sendContent("");
+
+  web_server.sendContent(F("    initWebSocket("));
+  web_server.sendContent(String(static_conf.portWs));
+  web_server.sendContent(F(");\n  };\n"));
+  
+  sendContentChunked(scriptsPageExploitExtend);
+  web_server.sendContent(F("  </script>\n</body>\n</html>"));
 }
 
 /**
  * \fn void html_generate_configuration_page(void)
  * \brief Fonction de generation du flux HTML/CSS/JS pour la page de configuration.
  */
-static void html_generate_configuration_page() {
+static void html_generate_configuration_page(void) {
   web_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   
   web_server.sendContent(FPSTR(htmlHeader));
   web_server.sendContent(F("<style>"));
-  web_server.sendContent(FPSTR(cssSteelSheet));
-  web_server.sendContent(F("</style>\n"));
-  web_server.sendContent(F("</head>\n"));
-  web_server.sendContent(F("<body>"));
-  web_server.sendContent(FPSTR(htmlPageConfig));
-  web_server.sendContent(F("  <script>\n"));
-  web_server.sendContent(F("  document.body.classList.add('theme-dark');"));
-  web_server.sendContent(FPSTR(scriptsCommon));
-  web_server.sendContent(FPSTR(scriptsPageConfig));
-  for(uint8_t i=0;i<wifi_equipments;i++)
-    web_server.sendContent("  addWifiSpot(\""+WiFi.SSID(i)+"\");\n");
-  web_server.sendContent(F("  </script>\n"));
-  web_server.sendContent(F("</body>\n"));
-  web_server.sendContent(F("</html>"));
+  sendContentChunked(cssSteelSheet);
+  web_server.sendContent(F("</style>\n</head>\n<body>"));
+  
+  sendContentChunked(htmlPageConfig);
+
+  web_server.sendContent(F("  <script>\n  document.body.classList.add('theme-dark');\n"));
+  
+  sendContentChunked(scriptsCommon);
+  sendContentChunked(scriptsPageConfig);
+
+  // Scan et ajout des SSIDs sans aucune instanciation de String
+  for(uint8_t i=0;i<wifi_equipments;i++) {
+    web_server.sendContent(F("  addWifiSpot(\""));
+    web_server.sendContent(WiFi.SSID(i));
+    web_server.sendContent(F("\");\n"));
+  }
+
+  web_server.sendContent(F("  </script>\n</body>\n</html>"));
 }
 
 /**
@@ -192,10 +257,14 @@ static void handle_action_exploitation_button() {
   String post_data = web_server.arg("data");
   if(post_data.endsWith("theme"))
     volatile_conf.theme = !volatile_conf.theme;
-  else if(post_data.endsWith("offps"))
-    volatile_conf.off_super_peak_hours = !volatile_conf.off_super_peak_hours;
-  else if(post_data.endsWith("offpe"))
-    volatile_conf.off_peak_hours = !volatile_conf.off_peak_hours;
+  else if(post_data.startsWith("offp")) {
+    OFF_PEAK_HOURS_t off_peak_hours = volatile_conf.off_peak_hours;     // Utilisation d'un variable temporaire évitant de travailler avec volatile_conf
+    uint8_t bit_index = post_data.charAt(post_data.length() - 1) - '0'; // Extraction du dernier octet offp '0', '1', '2', ...
+    *(uint16_t*)&off_peak_hours ^= (1U << bit_index);                   // Positionnement du bit concerné dans la structure OFF_PEAK_HOURS_t
+    off_peak_hours.RUF = 0;                                             // Positionnement du RUF à 0 (Evite les reliquats)
+    volatile_conf.off_peak_hours = off_peak_hours;                      // Re-écriture dans la volatile_conf
+  } else if(post_data.endsWith("force"))
+    sm_charger_set_force_charge(!sm_charger_get_force_charge()); 
   else if(post_data.endsWith("solar"))
     volatile_conf.solar_active = !volatile_conf.solar_active;
   else if(post_data.startsWith("degc")) {
@@ -322,8 +391,14 @@ void setup() {
     web_server.on("/", HTTP_GET, []() {
       html_generate_exploitation_page();
     });
-    web_server.on("/offps",HTTP_POST,handle_action_exploitation_button);
-    web_server.on("/offpe",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp0",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp1",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp2",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp3",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp4",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp5",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offp6",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/force",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/solar",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/degcm",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/degcp",HTTP_POST,handle_action_exploitation_button);
