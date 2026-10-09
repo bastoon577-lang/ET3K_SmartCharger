@@ -2,8 +2,7 @@
 
 > ⚠️ Il existe différentes configurations en fonction du contexte d'installation.
 > * Le compteur est en mode Historique (En Monophasé ou Triphasés)
-> * Le compteur est en mode Standard sans injection (En Monophasé ou Triphasés)
-> * Le compteur est en mode Standard avec injection (Panneaux Solaires) (En Monophasé ou Triphasés)
+> * Le compteur est en mode Standard avec/sans injection (En Monophasé ou Triphasés)
 
 # Monophasé
 
