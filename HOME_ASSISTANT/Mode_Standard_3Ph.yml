@@ -232,10 +232,30 @@ sensor:
     entity_id: sensor.moduletic_irms1
     id: tic_irms1
     internal: true
+    
+  - platform: homeassistant
+    entity_id: sensor.moduletic_irms2
+    id: tic_irms2
+    internal: true
+  
+  - platform: homeassistant
+    entity_id: sensor.moduletic_irms3
+    id: tic_irms3
+    internal: true
 
   - platform: homeassistant
     entity_id: sensor.moduletic_urms1
     id: tic_urms1
+    internal: true
+  
+  - platform: homeassistant
+    entity_id: sensor.moduletic_urms2
+    id: tic_urms2
+    internal: true
+    
+  - platform: homeassistant
+    entity_id: sensor.moduletic_urms3
+    id: tic_urms3
     internal: true
 
   - platform: homeassistant
@@ -410,23 +430,35 @@ script:
             return;
           }
 
-          // 3. Récupération des données TIC Monophasé
+          // 3. Récupération des données TIC Triphasés
           float irms1 = id(tic_irms1).state;
+          float irms2 = id(tic_irms2).state;
+          float irms3 = id(tic_irms3).state;
           float urms1 = id(tic_urms1).state;
+          float urms2 = id(tic_urms2).state;
+          float urms3 = id(tic_urms3).state;
           float pcoup_kva = id(tic_pcoup).state;
           float sinsti_va = id(tic_sinsti).state;
 
           if (std::isnan(urms1) || urms1 <= 0.0f) {
             urms1 = 230.0f;
           }
+          
+          if (std::isnan(urms2) || urms2 <= 0.0f) {
+            urms2 = 230.0f;
+          }
+          
+          if (std::isnan(urms3) || urms3 <= 0.0f) {
+            urms3 = 230.0f;
+          }
 
           if (std::isnan(sinsti_va)) {
             sinsti_va = 0.0f;
           }
 
-          float isousc = (pcoup_kva * 1000.0f) / urms1;
+          float isousc = (pcoup_kva * 1000.0f) / ((urms1+urms2+urms3)/3);
 
-          bool tic_invalide = std::isnan(irms1);
+          bool tic_invalide = std::isnan(irms1) || std::isnan(irms2) || std::isnan(irms3);
           bool tic_timeout = (id(derniere_maj_tic) == 0) || ((millis() - id(derniere_maj_tic)) > 60000);
 
           int val_courant_degrade = (int)id(courant_degrade).state;
@@ -447,10 +479,13 @@ script:
             }
             return;
           }
+          
+          // --- RECHERCHE DE LA PHASE LA PLUS CHARGÉE ---
+          float iinst_max = std::max({irms1, irms2, irms3});
 
           // --- SÉCURITÉ URGENCE STRICTE : SURCHARGE SEUIL HAUT (IRMS1 >= ISOUSC + 5A) ---
-          if (irms1 >= (isousc + 5.0f)) {
-            ESP_LOGW("REGULATION", "SURCHARGE SEUIL HAUT DETECTEE ! (Irms1: %.1fA, Isousc: %.1fA). Chute immédiate à 6A.", irms1, isousc);
+          if (iinst_max >= (isousc + 5.0f)) {
+            ESP_LOGW("REGULATION", "SURCHARGE SEUIL HAUT DETECTEE ! (Irms1: %.1fA, Irms2: %.1fA, Irms3: %.1fA, Isousc: %.1fA). Chute immédiate à 6A.", irms1, irms2, irms3, isousc);
             if (id(consigne_ampere) != 6) {
               id(consigne_ampere) = 6;
               id(consigne_modbus).make_call().set_value(6.0f).perform();
@@ -489,10 +524,10 @@ script:
           } 
           // --- LOGIQUE EN MODE REGULATION CLASSIQUE (RESEAU) ---
           else {
-            float available_current = isousc - irms1;
+            float available_current = isousc - iinst_max;
 
-            ESP_LOGI("REGULATION", "MODE RESEAU | LTARF: %s | Irms1=%.1fA | Urms1=%.1fV | Isousc=%.1fA | Consigne=%dA | Disponible=%.1fA",
-                     ltarf.c_str(), irms1, urms1, isousc, current_charge, available_current);
+            ESP_LOGI("REGULATION", "MODE RESEAU | LTARF: %s | Irms1=%.1fA | Irms2=%.1fA | Irms3=%.1fA | Isousc=%.1fA | Consigne=%dA | Disponible=%.1fA",
+                     ltarf.c_str(), irms1, irms2, irms3, isousc, current_charge, available_current);
 
             if (available_current < -3.0f) {
               ESP_LOGW("REGULATION", "Dépassement important (dispo: %.1fA) -> Chute à 6A", available_current);
