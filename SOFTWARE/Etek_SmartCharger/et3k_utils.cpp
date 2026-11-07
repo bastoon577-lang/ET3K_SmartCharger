@@ -1,9 +1,20 @@
 #include "et3k_utils.h"
 
+/*
+ * **************************************************************************************
+ *                    Fonctions privées de l'ETEK
+ * **************************************************************************************
+ */
+
 /**
  * \fn uint16_t modbus_compute_crc(uint8_t *buf, uint8_t len)
+ * \brief Fonction permettant le calcul du CRC d'une trame MODBUS
+ * \param in, le Buffer à intégrer
+ * \param in, la taille des données à intégrer
+ * \return
+ *    Le CRC calculé sur la trame
  */
-uint16_t modbus_compute_crc(uint8_t *buf, uint8_t len) {
+static uint16_t modbus_compute_crc(uint8_t *buf, uint8_t len) {
   uint16_t crc = 0xFFFF;
   for(uint8_t pos = 0; pos < len; pos++) {
     crc ^= (uint16_t)buf[pos];
@@ -18,6 +29,12 @@ uint16_t modbus_compute_crc(uint8_t *buf, uint8_t len) {
   }
   return crc;
 }
+
+/*
+ * **************************************************************************************
+ *                    Fonctions publiques de l'ETEK
+ * **************************************************************************************
+ */
 
 /**
  * \fn uint16_t modbus_read_register(uint8_t slave, uint16_t reg)
