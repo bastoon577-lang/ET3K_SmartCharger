@@ -72,12 +72,13 @@ static void erase_eeprom_and_reboot(void) {
 
 /**
  * \fn void sendContentChunked(const char* p, bool isProgmem = true, size_t chunkSize = 512)
- * \brief Fonction permettant de splitter une chaîne de caractère (RAM ou PROGMEM) au serveur Web par morceaux.
+ * \brief Fonction permettant de splitter une chaîne de caractère (RAM ou PROGMEM) au serveur Web par morceaux;
+ *		  cette stratégie permet de maitriser la consommation de STACK par la modification de chunk_size
  * \param in, Le pointeur vers la chaine de caractères
  * \param in, is_progmem lorsque la données est en mémoire Flash (PROGMEM / FPSTR / F()) (En PROGMEM par défaut)
- * \param in, chunk_size la taille des blocs à envoyer (512 octets par défaut)
+ * \param in, chunk_size la taille des blocs à envoyer (128 octets par défaut)
  */
-static void sendContentChunked(const char* p, bool is_progmem = true, size_t chunk_size = 512) {
+static void sendContentChunked(const char* p, bool is_progmem = true, size_t chunk_size = 128) {
   if (!p) return;
 
   size_t len=(is_progmem)?strlen_P(p):strlen(p);
@@ -100,6 +101,7 @@ static void sendContentChunked(const char* p, bool is_progmem = true, size_t chu
  * \brief Fonction de generation du flux HTML/CSS/JS pour la page d'exploitation.
  */
 static void html_generate_exploitation_page(void) {
+  char buf[128];
   web_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   
   sendContentChunked(htmlHeader);
@@ -203,13 +205,20 @@ static void html_generate_exploitation_page(void) {
   if (volatile_conf.off_peak_hours.off_super)         web_server.sendContent(F("    updateButton(\"offp4\",{clicked:true});\n"));
   if (volatile_conf.off_peak_hours.off_weekends)      web_server.sendContent(F("    updateButton(\"offp5\",{clicked:true});\n"));
   if (volatile_conf.off_peak_hours.off_wednesday)     web_server.sendContent(F("    updateButton(\"offp6\",{clicked:true});\n"));
+  if (volatile_conf.prio_hc_on_solar)                 web_server.sendContent(F("    updateButton(\"offso\",{clicked:true});\n"));
   if (volatile_conf.solar_active)                     web_server.sendContent(F("    updateButton(\"solar\",{clicked:true});\n"));
+
+  snprintf(buf, sizeof(buf), "    updateSolarHour(\"label-start\",\"%.2s:%.2s\");\n",volatile_conf.solar_start_hour,volatile_conf.solar_start_hour+2);
+  web_server.sendContent(buf);
+
+  snprintf(buf, sizeof(buf), "    updateSolarHour(\"label-end\",\"%.2s:%.2s\");\n",volatile_conf.solar_end_hour,volatile_conf.solar_end_hour+2);
+  web_server.sendContent(buf);
 
   if (!static_conf.is_tic_module_used) {
     web_server.sendContent(F("    document.getElementById(\"deg_sect\").style.display = \"None\";\n"));
     web_server.sendContent(F("    updateButton(\"force\",{hidden:true});\n"));
-    web_server.sendContent(F("    updateButton(\"solar\",{hidden:true});\n"));
     web_server.sendContent(F("    removeContainer(3);\n"));
+    web_server.sendContent(F("    removeContainer(4);\n"));
   }
 
   web_server.sendContent(F("    initWebSocket("));
@@ -264,7 +273,9 @@ static void handle_action_exploitation_button() {
     off_peak_hours.RUF = 0;                                             // Positionnement du RUF à 0 (Evite les reliquats)
     volatile_conf.off_peak_hours = off_peak_hours;                      // Re-écriture dans la volatile_conf
   } else if(post_data.endsWith("force"))
-    sm_charger_set_force_charge(!sm_charger_get_force_charge()); 
+    sm_charger_set_force_charge(!sm_charger_get_force_charge());
+  else if(post_data.endsWith("offso"))
+    volatile_conf.prio_hc_on_solar = !volatile_conf.prio_hc_on_solar;
   else if(post_data.endsWith("solar"))
     volatile_conf.solar_active = !volatile_conf.solar_active;
   else if(post_data.startsWith("degc")) {
@@ -294,6 +305,24 @@ static void handle_action_exploitation_button() {
 }
 
 /**
+ * \fn void handle_action_exploitation_input()
+ * \brief Fonction permettant la gestion des input de type TEXT des requetes POST en mode exploitation.
+ */
+static void handle_action_exploitation_input() {
+  if (web_server.hasArg("stsho")) {
+    strncpy(volatile_conf.solar_start_hour, web_server.arg("stsho").c_str(), sizeof(volatile_conf.solar_start_hour) - 1);
+    volatile_conf.solar_start_hour[sizeof(volatile_conf.solar_start_hour) - 1] = '\0';
+  }else if(web_server.hasArg("ensho")) {
+    strncpy(volatile_conf.solar_end_hour, web_server.arg("ensho").c_str(), sizeof(volatile_conf.solar_end_hour) - 1);
+    volatile_conf.solar_end_hour[sizeof(volatile_conf.solar_end_hour) - 1] = '\0';
+  }
+  // Sauvegarde de la configuration en mémoire EEPROM, ceci n'est pas optimisé car chaque modification entraine une ecriture !
+  eeprom_write_data(&volatile_conf,EEPROM_VOLATILE_CFG);
+   
+  web_server.send(200,F("text/html"),"");
+}
+
+/**
  * \fn void handle_action_configuration_button()
  * \brief Fonction permettant la gestion des input de type BOUTON des requetes POST en mode configuration.
  */
@@ -307,13 +336,16 @@ static void handle_action_configuration_button() {
     static_conf.is_tic_module_used = (conf)?1:0;
   else if(post_data.startsWith("wif"))
     static_conf.is_wifi_network_used = (conf)?1:0;
-  else if(post_data.endsWith("end"))                                    // Signal de fin de configuration
+  else if(post_data.endsWith("end"))                          // Signal de fin de configuration
   {
-    static_conf.is_configured = 1;                                      // Positionnement du flag de configuration
-                                                                        // Sauvegarde des données en mémoire EEPROM
-    eeprom_write_data(&static_conf,EEPROM_STATIC_CFG);                  
+    memcpy(volatile_conf.solar_start_hour,"0000",4);          // Positionnement de l'heure solaire à 00:00
+    memcpy(volatile_conf.solar_end_hour,"2400",4);            // Positionnement de l'heure solaire à 23:59
+    static_conf.is_configured = 1;                            // Positionnement du flag de configuration
+                                                              // Sauvegarde des données en mémoire EEPROM
+    eeprom_write_data(&volatile_conf,EEPROM_VOLATILE_CFG);
+    eeprom_write_data(&static_conf,EEPROM_STATIC_CFG);
     eeprom_write_data(&tic_conf,EEPROM_TIC_CFG);
-    reboot_set();                                                       // Redémarrage de l'équippement pour la prise en compte
+    reboot_set();                                             // Redémarrage de l'équippement pour la prise en compte
   }
   web_server.send(200,F("text/html"),"");
 }
@@ -353,38 +385,35 @@ static void handle_action_configuration_input() {
 }
 
 void setup() {
-  const uint8_t null_ip[4] = {0,0,0,0};                                 // Vecteur d'IP NULL
+  const uint8_t null_ip[4] = {0,0,0,0};                       // Vecteur d'IP NULL
   dhcp_enable = 0;
 
-  hal_init();                                                           // Initialisation de la HAL
-  reboot_init(TIMEOUT_REBOOT);                                          // Initialisation du service Reboot
-  eeprom_init();                                                        // Initialisation du service EEPROM
-                                                                        // Initialisation des structures en RAM à 0
+  hal_init();                                                 // Initialisation de la HAL
+  reboot_init(TIMEOUT_REBOOT);                                // Initialisation du service Reboot
+  eeprom_init();                                              // Initialisation du service EEPROM
+                                                              // Initialisation des structures en RAM à 0
   memset(&volatile_conf, 0, sizeof(VOLATILE_CONF_FIELDS_t));
   memset(&static_conf, 0, sizeof(STATIC_CONF_FIELDS_t));
   memset(&tic_conf, 0, sizeof(TIC_CONF_FIELDS_t));
-                                                                        // Initialisation des structures des données issues de la mémoire EEPROM
+                                                              // Initialisation des structures des données issues de la mémoire EEPROM
   eeprom_read_data(&static_conf,EEPROM_STATIC_CFG);
   eeprom_read_data(&volatile_conf,EEPROM_VOLATILE_CFG);
   eeprom_read_data(&tic_conf,EEPROM_TIC_CFG);
-                                                                        // La configuration réseau du SmartCharger est-elle DHCP ?
+                                                              // La configuration réseau du SmartCharger est-elle DHCP ?
   if(memcmp(&static_conf.address,null_ip,4) == 0 && 
       memcmp(&static_conf.subnet,null_ip,4) == 0 && 
       memcmp(&static_conf.gateway,null_ip,4) == 0)
     dhcp_enable = 1;
   
-  if(static_conf.is_configured)                                         // L'equipement est-il configuré ?
+  if(static_conf.is_configured)                               // L'equipement est-il configuré ?
   {
-    if(static_conf.is_wifi_network_used)                                // Un reseau Wifi est-il configuré ?
-    {
-      if(!dhcp_enable)                                                  // Une configuration manuelle est presente ?
+    if(static_conf.is_wifi_network_used) {                    // Un reseau Wifi est-il configuré ?
+      if(!dhcp_enable)                                        // Une configuration manuelle est presente ?
         WiFi.config(static_conf.address,static_conf.gateway,static_conf.subnet); // Application de la configuration                                 
-      WiFi.begin(static_conf.SmSsid,static_conf.SmPass);                // Connexion au réseau
-    }
-    else                                                                // Aucun reseau Wifi n'est configué                                              
-    {
-      WiFi.mode(WIFI_AP);                                               // Forçage en mode Access Point
-      WiFi.softAP(static_conf.SmSsid,static_conf.SmPass,AP_CHANNEL,AP_VISIBILITE,AP_MAX_CONN); // Creation du Hotspot    
+      WiFi.begin(static_conf.SmSsid,static_conf.SmPass);      // Connexion au réseau
+    } else {                                                  // Aucun reseau Wifi n'est configué                                              
+      WiFi.mode(WIFI_AP);                                     // Forçage en mode Access Point
+      WiFi.softAP(static_conf.SmSsid,static_conf.SmPass,AP_CHANNEL,AP_VISIBILITE,AP_MAX_CONN);
     }
 
     // Initialisation de la page d'exploitation
@@ -398,34 +427,35 @@ void setup() {
     web_server.on("/offp4",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/offp5",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/offp6",HTTP_POST,handle_action_exploitation_button);
-    web_server.on("/force",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/solar",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/offso",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/force",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/degcm",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/degcp",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/limcm",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/limcp",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/theme",HTTP_POST,handle_action_exploitation_button);
     web_server.on("/reset",HTTP_POST,handle_action_exploitation_button);
+    web_server.on("/stsho",HTTP_POST,handle_action_exploitation_input);
+    web_server.on("/ensho",HTTP_POST,handle_action_exploitation_input);
 
-    ws_server_init(static_conf.portWs);                                 // Initialisation du service WebSocket Server
-    if(static_conf.is_tic_module_used) {                                // Un Module TIC est-il configuré ?
-      ws_client_init(&tic_conf,&static_conf);                           // Initialisation du service WebSocket Client
+    ws_server_init(static_conf.portWs);                       // Initialisation du service WebSocket Server
+    if(static_conf.is_tic_module_used) {                      // Un Module TIC est-il configuré ?
+      ws_client_init(&tic_conf,&static_conf);                 // Initialisation du service WebSocket Client
     }
-  }
-  else                                                                  // L'equipement est vierge
-  {
-    IPAddress ap_ip(192,168,4,1);                                       // Forçage de l'IP AP en 192.168.4.1
-    WiFi.mode(WIFI_AP);                                                 // Forçage en mode Access Point
-    WiFi.softAPConfig(ap_ip,ap_ip,IPAddress(255,255,255,0));            // Configuration de l'AP
-    WiFi.softAP(AP_SSID,AP_PASS,AP_CHANNEL,AP_VISIBILITE,AP_MAX_CONN);  // Creation du Hotspot SmartCharger
+  } else {                                                    // L'equipement est vierge
+    IPAddress ap_ip(192,168,4,1);                             // Forçage de l'IP AP en 192.168.4.1
+    WiFi.mode(WIFI_AP);                                       // Forçage en mode Access Point
+    WiFi.softAPConfig(ap_ip,ap_ip,IPAddress(255,255,255,0));  // Configuration de l'AP
+    WiFi.softAP(AP_SSID,AP_PASS,AP_CHANNEL,AP_VISIBILITE,AP_MAX_CONN);
 
-    dns_server.start(AP_DNS_CAPTIVE_PORTAL,"*",ap_ip);                  // Démarrage du serveur DNS (Redirige * vers l'IP de l'AP)
+    dns_server.start(AP_DNS_CAPTIVE_PORTAL,"*",ap_ip);        // Démarrage du serveur DNS (Redirige * vers l'IP de l'AP)
     
-    memcpy(&static_conf.Hostname,AP_SSID,sizeof(AP_SSID));              // Sauvegarde du Hostname par defaut
-    memcpy(&static_conf.SmSsid,AP_SSID,sizeof(AP_SSID));                // Sauvegarde du SSID par defaut
-    memcpy(&static_conf.SmPass,AP_PASS,sizeof(AP_PASS));                // Sauvegarde du Password par defaut
-    static_conf.portWs = 443;                                           // Sauvegarde du Port WebSocket par defaut
-    static_conf.port   = 80;                                            // Sauvegarde du Port Web par defaut
+    memcpy(&static_conf.Hostname,AP_SSID,sizeof(AP_SSID));    // Sauvegarde du Hostname par defaut
+    memcpy(&static_conf.SmSsid,AP_SSID,sizeof(AP_SSID));      // Sauvegarde du SSID par defaut
+    memcpy(&static_conf.SmPass,AP_PASS,sizeof(AP_PASS));      // Sauvegarde du Password par defaut
+    static_conf.portWs = 443;                                 // Sauvegarde du Port WebSocket par defaut
+    static_conf.port   = 80;                                  // Sauvegarde du Port Web par defaut
 
     // Initialisation de la page de configuration
     web_server.on("/", HTTP_GET, []() {
@@ -451,35 +481,35 @@ void setup() {
       web_server.send(302,"text/plain","");
     });
 
-    wifi_equipments = WiFi.scanNetworks();                              // Scan des reseaux Wifi disponibles
+    wifi_equipments = WiFi.scanNetworks();                    // Scan des reseaux Wifi disponibles
   }
   
-  sm_charger_init(&static_conf,&volatile_conf);                         // Initialisation du service Charger
-  ArduinoOTA.setHostname(static_conf.Hostname);                         // Initialisation du Hostname OTA
-  WiFi.hostname(static_conf.Hostname);                                  // Initialisation du Hostname Web
-  web_server.begin(static_conf.port);                                   // Activation du serveur Web
-  ArduinoOTA.begin();                                                   // Activation du service OTA
+  sm_charger_init(&static_conf,&volatile_conf);               // Initialisation du service Charger
+  ArduinoOTA.setHostname(static_conf.Hostname);               // Initialisation du Hostname OTA
+  WiFi.hostname(static_conf.Hostname);                        // Initialisation du Hostname Web
+  web_server.begin(static_conf.port);                         // Activation du serveur Web
+  ArduinoOTA.begin();                                         // Activation du service OTA
 }
 
 void loop() {
   static unsigned long timer_scan_network = millis();
   
-  if(!static_conf.is_configured) {                                      // L'équipement n'est pas configuré
-    dns_server.processNextRequest();                                    // Traitement des requêtes DNS du portail captif
+  if(!static_conf.is_configured) {                            // L'équipement n'est pas configuré
+    dns_server.processNextRequest();                          // Traitement des requêtes DNS du portail captif
     if(millis() - timer_scan_network >= TIMEOUT_SCAN_NETWORK) {
-      wifi_equipments = WiFi.scanNetworks();                            // Scan des reseaux Wifi disponibles
+      wifi_equipments = WiFi.scanNetworks();                  // Scan des reseaux Wifi disponibles
       timer_scan_network = millis();
     }  
-  } else {                                                              // L'équipement est configuré
-    if(reboot_get_button_state() == true)                               // Le bouton Reset est appuyé
+  } else {                                                    // L'équipement est configuré
+    if(reboot_get_button_state() == true)                     // Le bouton Reset est appuyé
       erase_eeprom_and_reboot();
-    sm_charger_handler();                                               // Handler du service Charger
-    ws_handler();                                                       // Handler du service WebSocket
+    sm_charger_handler();                                     // Handler du service Charger
+    ws_handler();                                             // Handler du service WebSocket
   }
   
   // Néanmoins, dans tous les cas, il est nécessaire d'effectuer les services suivants ...
-  web_server.handleClient();                                            // Handler du service Web
-  if(!sm_charger_prevent_updates())                                     // La mise à jour est possible ?
-    ArduinoOTA.handle();                                                // Handler du service OTA
-  reboot_handler();                                                     // Handler du service Reboot
+  web_server.handleClient();                                  // Handler du service Web
+  if(!sm_charger_prevent_updates())                           // La mise à jour est possible ?
+    ArduinoOTA.handle();                                      // Handler du service OTA
+  reboot_handler();                                           // Handler du service Reboot
 }

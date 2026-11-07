@@ -7,7 +7,7 @@
 #include "et3k_utils.h"
 
 //< Define du HARDWARE
-#define HW_NAME                   "ET3K"
+#define HW_NAME                   "ET3K"				// Module concernés
 
 //< Define des In/Out
 #define ET3K_UART                 Serial                // BUS de communication avec l'ET3K

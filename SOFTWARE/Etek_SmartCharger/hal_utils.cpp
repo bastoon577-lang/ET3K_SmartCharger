@@ -61,10 +61,10 @@ void hal_evse_update_output(uint8_t current) {
 
     // Attribution du courant de consigne
     if(previous_current != current) {                         // Le courant à changé
-	    delay(5);                                               // Attente avant envois d'une nouvelle commande à l'ET3K
+	    delay(5);                                             // Attente avant envois d'une nouvelle commande à l'ET3K
       modbus_write_register(ET3K_ID,ET3K_SET_CURRENT,
                             ET3K_CURRENT(current));           // Envois de la commande du courant de consigne à l'ET3K
-	    previous_current = current;                             // Sauvegarde du courant
+	    previous_current = current;                           // Sauvegarde du courant
     }
   }
 }
@@ -80,7 +80,10 @@ CHARGE_STATE_EVSE_e hal_evse_get_state(void) {
         (CHARGE_STATE_ET3K_e)
           modbus_read_register(ET3K_ID,ET3K_GET_STATE);       // Lecture de l'état de l'ET3K
 
-  // Interprêtation de l'état issue de l'énumération CHARGE_STATE_ET3K_e par la translation vers l'énumération CHARGE_STATE_EVSE_e
+  /*
+   * Interprêtation de l'état issue de l'énumération CHARGE_STATE_ET3K_e par la translation 
+   * vers l'énumération CHARGE_STATE_EVSE_e
+   */
   switch(et3k_state) {
     case et3k_ready:
       return evse_Not_Connected;
